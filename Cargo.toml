@@ -8,6 +8,10 @@ edition = "2018"
 name = "food-producer"
 path = "src/food_producer.rs"
 
+[[bin]]
+name = "food-consumer"
+path = "src/food_consumer.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
