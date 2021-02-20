@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package ecosystem;
+
+service FoodSource {
+    rpc GetFood(FoodRequest) returns (stream Food) {}
+}
+
+message FoodRequest {
+    int32 id = 1;
+}
+
+message Food {
+    int32 id = 1;
+}
