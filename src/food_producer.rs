@@ -1,6 +1,7 @@
 use futures::Stream;
 use std::pin::Pin;
 use tokio::sync::mpsc;
+use tokio::time;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 
@@ -26,11 +27,17 @@ impl FoodSource for FoodSourceService {
         let (tx, rx) = mpsc::channel(1);
 
         tokio::spawn(async move {
-            for i in 0..9 {
-                tx.send(Ok(Food { id: i })).await.unwrap();
-            }
+            let interval_seconds: u64 = 2;
+            let interval_duration = time::Duration::from_secs(interval_seconds);
+            let mut interval = time::interval(interval_duration);
+            let mut food_id: usize = 0;
 
-            println!("done sending");
+            loop {
+                interval.tick().await;
+                food_id += 1;
+                println!("Food Id = {}", food_id);
+                tx.send(Ok(Food { id: food_id as i32 })).await.unwrap();
+            }
         });
 
         Ok(Response::new(Box::pin(
