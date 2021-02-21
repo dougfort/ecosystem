@@ -36,7 +36,10 @@ impl FoodSource for FoodSourceService {
                 interval.tick().await;
                 food_id += 1;
                 println!("Food Id = {}", food_id);
-                tx.send(Ok(Food { id: food_id as i32 })).await.unwrap();
+                if let Err(e) = tx.send(Ok(Food { id: food_id as i32 })).await {
+                    println!("tx.send failed: {}", e);
+                    break;
+                }
             }
         });
 
