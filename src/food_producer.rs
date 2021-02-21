@@ -18,11 +18,13 @@ pub struct FoodSourceService;
 impl FoodSource for FoodSourceService {
     type GetFoodStream = Pin<Box<dyn Stream<Item = Result<Food, Status>> + Send + Sync + 'static>>;
 
+    // TODO: can't get tracing spans to compile wiht streams
+//    #[tracing::instrument]
     async fn get_food(
         &self,
         request: Request<FoodRequest>,
     ) -> Result<Response<Self::GetFoodStream>, Status> {
-        println!("GetFood = {:?}", request);
+        tracing::debug!("get_food = {:?}", request);
 
         let (tx, rx) = mpsc::channel(1);
 
@@ -35,12 +37,14 @@ impl FoodSource for FoodSourceService {
             loop {
                 interval.tick().await;
                 food_id += 1;
-                println!("Food Id = {}", food_id);
+                tracing::debug!("Food Id = {}", food_id);
                 if let Err(e) = tx.send(Ok(Food { id: food_id as i32 })).await {
-                    println!("tx.send failed: {}", e);
+                    tracing::debug!("tx.send failed: {}", e);
                     break;
                 }
             }
+
+            tracing::debug!("exit interval loop")
         });
 
         Ok(Response::new(Box::pin(
@@ -51,11 +55,20 @@ impl FoodSource for FoodSourceService {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
     let addr = "[::1]:10000".parse().unwrap();
     let food_service = FoodSourceService {};
     let svc = FoodSourceServer::new(food_service);
 
-    Server::builder().add_service(svc).serve(addr).await?;
+    tracing::info!(message = "Starting server.", %addr);
+    Server::builder()
+        .trace_fn(|_| tracing::info_span!("ecosystem_server"))
+        .add_service(svc)
+        .serve(addr)
+        .await?;
 
     Ok(())
 }
