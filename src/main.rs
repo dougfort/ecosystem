@@ -86,12 +86,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let organism_service = OrganismService {};
 
     let server_addr = args[2].clone();
-    let peer_addr = args[3].clone();
-    tokio::spawn(async move { connect_to_peer(&peer_addr).await });
+    for arg in args.iter().skip(3) {
+        let peer_addr = arg.clone();
+        tokio::spawn(async move { connect_to_peer(&peer_addr).await });
+    }
 
     let svc = OrganismServer::new(organism_service);
 
-    tracing::info!(message = "Starting server.", %server_addr);
+    tracing::info!("Starting server {} {}", *SERVER_NAME, server_addr);
     Server::builder()
         .trace_fn(|_| tracing::info_span!("ecosystem_server"))
         .add_service(svc)
