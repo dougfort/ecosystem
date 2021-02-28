@@ -79,8 +79,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let peer_addr = args[2].clone();
     tokio::spawn(async move {
-        let uri = format!("http://{}", peer_addr);
-        let mut client = OrganismClient::connect(uri).await.expect("Connect failed");
+        let mut retries: usize = 10;
+        let mut client = None;
+        loop {
+            let uri = format!("http://{}", peer_addr);
+            match OrganismClient::connect(uri).await {
+                Ok(c) => {
+                    client = Some(c);
+                    break;
+                }
+                Err(e) => {
+                    tracing::error!("{}) unable to connect: {:?}", retries, e);
+                    if retries == 0 {
+                        break;
+                    };
+                    time::sleep(time::Duration::from_secs(10)).await;
+                    retries -= 1;
+                }
+            }
+        }
+        if client.is_none() {
+            panic!("unable to connect");
+        }
+        let mut client = client.unwrap();
 
         let outbound = async_stream::stream! {
             let interval_seconds: u64 = 2;
