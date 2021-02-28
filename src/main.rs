@@ -85,39 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let food_source = organism_service.source_name.clone();
 
     let peer_addr = args[2].clone();
-    tokio::spawn(async move {
-        let mut client = connect_client(&peer_addr).await.expect("unable to connect");
-
-        let outbound = async_stream::stream! {
-            let interval_seconds: u64 = 2;
-            let interval_duration = time::Duration::from_secs(interval_seconds);
-            let mut interval = time::interval(interval_duration);
-            let mut food_id: usize = 0;
-
-            loop {
-                interval.tick().await;
-                food_id += 1;
-                let food = Food {
-                    id: food_id as i32,
-                    source: food_source.clone(),
-                    kind: 1,
-                    amount: 1,
-                };
-                tracing::info!("food = {:?}", food);
-                yield food;
-            }
-        };
-
-        let response = client
-            .food_flow(Request::new(outbound))
-            .await
-            .expect("food_flow failed");
-        let mut inbound = response.into_inner();
-
-        while let Some(food) = inbound.message().await.expect("nbound.message() failed") {
-            println!("food = {:?}", food);
-        }
-    });
+    tokio::spawn(async move { connect_to_peer(food_source.clone(), &peer_addr).await });
 
     let server_addr = organism_service.source_name.clone().parse().unwrap();
     let svc = OrganismServer::new(organism_service);
@@ -130,6 +98,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     Ok(())
+}
+
+async fn connect_to_peer(food_source: String, peer_addr: &str) {
+    let mut client = connect_client(&peer_addr).await.expect("unable to connect");
+
+    let outbound = async_stream::stream! {
+        let interval_seconds: u64 = 2;
+        let interval_duration = time::Duration::from_secs(interval_seconds);
+        let mut interval = time::interval(interval_duration);
+        let mut food_id: usize = 0;
+
+        loop {
+            interval.tick().await;
+            food_id += 1;
+            let food = Food {
+                id: food_id as i32,
+                source: food_source.clone(),
+                kind: 1,
+                amount: 1,
+            };
+            tracing::info!("food = {:?}", food);
+            yield food;
+        }
+    };
+
+    let response = client
+        .food_flow(Request::new(outbound))
+        .await
+        .expect("food_flow failed");
+    let mut inbound = response.into_inner();
+
+    while let Some(food) = inbound.message().await.expect("nbound.message() failed") {
+        println!("food = {:?}", food);
+    }
 }
 
 async fn connect_client(
