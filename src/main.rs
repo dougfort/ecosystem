@@ -86,29 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let peer_addr = args[2].clone();
     tokio::spawn(async move {
-        let mut retries: usize = 10;
-        let mut client = None;
-        loop {
-            let uri = format!("http://{}", peer_addr);
-            match OrganismClient::connect(uri).await {
-                Ok(c) => {
-                    client = Some(c);
-                    break;
-                }
-                Err(e) => {
-                    tracing::error!("{}) unable to connect: {:?}", retries, e);
-                    if retries == 0 {
-                        break;
-                    };
-                    time::sleep(time::Duration::from_secs(10)).await;
-                    retries -= 1;
-                }
-            }
-        }
-        if client.is_none() {
-            panic!("unable to connect");
-        }
-        let mut client = client.unwrap();
+        let mut client = connect_client(&peer_addr).await.expect("unable to connect");
 
         let outbound = async_stream::stream! {
             let interval_seconds: u64 = 2;
@@ -152,4 +130,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     Ok(())
+}
+
+async fn connect_client(
+    addr: &str,
+) -> Result<OrganismClient<tonic::transport::Channel>, tonic::transport::Error> {
+    let mut retries: usize = 10;
+    loop {
+        let uri = format!("http://{}", addr);
+        match OrganismClient::connect(uri).await {
+            Ok(c) => {
+                return Ok(c);
+            }
+            Err(e) => {
+                tracing::error!("{}) unable to connect: {:?}", retries, e);
+                if retries == 0 {
+                    return Err(e);
+                };
+                time::sleep(time::Duration::from_secs(10)).await;
+                retries -= 1;
+            }
+        }
+    }
 }
