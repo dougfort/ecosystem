@@ -1,5 +1,6 @@
 use futures::Stream;
 use futures_util::StreamExt;
+use lazy_static::lazy_static;
 use std::env;
 use std::pin::Pin;
 use tokio::sync::mpsc;
@@ -14,10 +15,15 @@ use ecosystem::organism_client::OrganismClient;
 use ecosystem::organism_server::{Organism, OrganismServer};
 use ecosystem::Food;
 
-#[derive(Debug)]
-pub struct OrganismService {
-    source_name: String,
+lazy_static! {
+    static ref SERVER_NAME: String = {
+        let args: Vec<String> = env::args().collect();
+        args[1].clone()
+    };
 }
+
+#[derive(Debug)]
+pub struct OrganismService;
 
 #[tonic::async_trait]
 impl Organism for OrganismService {
@@ -39,8 +45,6 @@ impl Organism for OrganismService {
             }
         });
 
-        let source = self.source_name.clone();
-
         tokio::spawn(async move {
             let interval_seconds: u64 = 2;
             let interval_duration = time::Duration::from_secs(interval_seconds);
@@ -52,7 +56,7 @@ impl Organism for OrganismService {
                 food_id += 1;
                 let food = Food {
                     id: food_id as i32,
-                    source: source.clone(),
+                    source: SERVER_NAME.to_string(),
                     kind: 1,
                     amount: 1,
                 };
@@ -79,28 +83,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args: Vec<String> = env::args().collect();
-    let organism_service = OrganismService {
-        source_name: args[1].clone(),
-    };
-    let food_source = organism_service.source_name.clone();
+    let organism_service = OrganismService {};
 
-    let peer_addr = args[2].clone();
-    tokio::spawn(async move { connect_to_peer(food_source.clone(), &peer_addr).await });
+    let server_addr = args[2].clone();
+    let peer_addr = args[3].clone();
+    tokio::spawn(async move { connect_to_peer(&peer_addr).await });
 
-    let server_addr = organism_service.source_name.clone().parse().unwrap();
     let svc = OrganismServer::new(organism_service);
 
     tracing::info!(message = "Starting server.", %server_addr);
     Server::builder()
         .trace_fn(|_| tracing::info_span!("ecosystem_server"))
         .add_service(svc)
-        .serve(server_addr)
+        .serve(server_addr.parse().unwrap())
         .await?;
 
     Ok(())
 }
 
-async fn connect_to_peer(food_source: String, peer_addr: &str) {
+async fn connect_to_peer(peer_addr: &str) {
     let mut client = connect_client(&peer_addr).await.expect("unable to connect");
 
     let outbound = async_stream::stream! {
@@ -114,7 +115,7 @@ async fn connect_to_peer(food_source: String, peer_addr: &str) {
             food_id += 1;
             let food = Food {
                 id: food_id as i32,
-                source: food_source.clone(),
+                source: SERVER_NAME.to_string(),
                 kind: 1,
                 amount: 1,
             };
