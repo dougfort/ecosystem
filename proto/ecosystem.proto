@@ -2,14 +2,12 @@ syntax = "proto3";
 
 package ecosystem;
 
-service FoodSource {
-    rpc GetFood(FoodRequest) returns (stream Food) {}
-}
-
-message FoodRequest {
-    int32 id = 1;
+service Organism {
+    rpc FoodFlow(stream Food) returns (stream Food) {}
 }
 
 message Food {
     int32 id = 1;
+    int32 kind = 2;
+    int32 amount = 3;
 }

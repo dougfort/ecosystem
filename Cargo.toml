@@ -4,14 +4,6 @@ version = "0.1.0"
 authors = ["dougfort <doug.fort@gmail.com>"]
 edition = "2018"
 
-[[bin]]
-name = "food-producer"
-path = "src/food_producer.rs"
-
-[[bin]]
-name = "food-consumer"
-path = "src/food_consumer.rs"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
