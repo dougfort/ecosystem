@@ -14,32 +14,9 @@ pub mod ecosystem {
 }
 use ecosystem::organism_client::OrganismClient;
 use ecosystem::organism_server::{Organism, OrganismServer};
-use ecosystem::Food;
 
-#[derive(Debug)]
-struct State {
-    source: String,
-    food_id: usize,
-}
-
-impl State {
-    fn new(source: &str) -> Self {
-        State {
-            source: source.to_string(),
-            food_id: 0,
-        }
-    }
-
-    fn create_food(&mut self) -> Option<Food> {
-        self.food_id += 1;
-        Some(Food {
-            id: self.food_id as i32,
-            source: self.source.clone(),
-            kind: 1,
-            amount: 1,
-        })
-    }
-}
+pub mod state;
+use state::State;
 
 #[derive(Debug)]
 pub struct OrganismService {
@@ -48,11 +25,12 @@ pub struct OrganismService {
 
 #[tonic::async_trait]
 impl Organism for OrganismService {
-    type FoodFlowStream = Pin<Box<dyn Stream<Item = Result<Food, Status>> + Send + Sync + 'static>>;
+    type FoodFlowStream =
+        Pin<Box<dyn Stream<Item = Result<ecosystem::Food, Status>> + Send + Sync + 'static>>;
 
     async fn food_flow(
         &self,
-        request: Request<tonic::Streaming<Food>>,
+        request: Request<tonic::Streaming<ecosystem::Food>>,
     ) -> Result<Response<Self::FoodFlowStream>, Status> {
         tracing::info!("food_flow = {:?}", request);
 
