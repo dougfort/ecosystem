@@ -1,8 +1,9 @@
 use futures::Stream;
 use futures_util::StreamExt;
-use lazy_static::lazy_static;
 use std::env;
 use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::time;
 use tonic::transport::Server;
@@ -15,15 +16,35 @@ use ecosystem::organism_client::OrganismClient;
 use ecosystem::organism_server::{Organism, OrganismServer};
 use ecosystem::Food;
 
-lazy_static! {
-    static ref SERVER_NAME: String = {
-        let args: Vec<String> = env::args().collect();
-        args[1].clone()
-    };
+#[derive(Debug)]
+struct State {
+    source: String,
+    food_id: usize,
+}
+
+impl State {
+    fn new(source: &str) -> Self {
+        State {
+            source: source.to_string(),
+            food_id: 0,
+        }
+    }
+
+    fn create_food(&mut self) -> Option<Food> {
+        self.food_id += 1;
+        Some(Food {
+            id: self.food_id as i32,
+            source: self.source.clone(),
+            kind: 1,
+            amount: 1,
+        })
+    }
 }
 
 #[derive(Debug)]
-pub struct OrganismService;
+pub struct OrganismService {
+    state: Arc<Mutex<State>>,
+}
 
 #[tonic::async_trait]
 impl Organism for OrganismService {
@@ -45,25 +66,24 @@ impl Organism for OrganismService {
             }
         });
 
+        let state_ref = Arc::clone(&self.state);
         tokio::spawn(async move {
             let interval_seconds: u64 = 2;
             let interval_duration = time::Duration::from_secs(interval_seconds);
             let mut interval = time::interval(interval_duration);
-            let mut food_id: usize = 0;
 
             loop {
                 interval.tick().await;
-                food_id += 1;
-                let food = Food {
-                    id: food_id as i32,
-                    source: SERVER_NAME.to_string(),
-                    kind: 1,
-                    amount: 1,
+                let food = {
+                    let mut state = state_ref.lock().unwrap();
+                    state.create_food()
                 };
-                tracing::info!("food = {:?}", food);
-                if let Err(e) = tx.send(Ok(food)).await {
-                    tracing::info!("tx.send failed: {}", e);
-                    break;
+                if let Some(food) = food {
+                    tracing::info!("food = {:?}", food);
+                    if let Err(e) = tx.send(Ok(food)).await {
+                        tracing::info!("tx.send failed: {}", e);
+                        break;
+                    }
                 }
             }
 
@@ -83,17 +103,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args: Vec<String> = env::args().collect();
-    let organism_service = OrganismService {};
+
+    let server_name = args[1].clone();
+    let organism_service = OrganismService {
+        state: Arc::new(Mutex::new(State::new(&server_name))),
+    };
 
     let server_addr = args[2].clone();
     for arg in args.iter().skip(3) {
+        let state_ref = Arc::clone(&organism_service.state);
         let peer_addr = arg.clone();
-        tokio::spawn(async move { connect_to_peer(&peer_addr).await });
+        tokio::spawn(async move { connect_to_peer(state_ref, &peer_addr).await });
     }
 
     let svc = OrganismServer::new(organism_service);
 
-    tracing::info!("Starting server {} {}", *SERVER_NAME, server_addr);
+    tracing::info!("Starting server {} {}", "food", server_addr);
     Server::builder()
         .trace_fn(|_| tracing::info_span!("ecosystem_server"))
         .add_service(svc)
@@ -103,7 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn connect_to_peer(peer_addr: &str) {
+async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
     let mut client = connect_client(&peer_addr).await.expect("unable to connect");
 
     let outbound = async_stream::stream! {
@@ -114,15 +139,14 @@ async fn connect_to_peer(peer_addr: &str) {
 
         loop {
             interval.tick().await;
-            food_id += 1;
-            let food = Food {
-                id: food_id as i32,
-                source: SERVER_NAME.to_string(),
-                kind: 1,
-                amount: 1,
+            let food = {
+                let mut state = state_ref.lock().unwrap();
+                state.create_food()
             };
             tracing::info!("food = {:?}", food);
-            yield food;
+            if let Some(food) = food {
+                yield food;
+            }
         }
     };
 
