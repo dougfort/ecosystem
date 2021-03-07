@@ -36,15 +36,20 @@ impl Organism for OrganismService {
 
         let (tx, rx) = mpsc::channel(1);
 
+        let inbound_state_ref = self.state.clone();
         tokio::spawn(async move {
             let mut stream = request.into_inner();
             while let Some(food) = stream.next().await {
                 let food = food.unwrap();
                 tracing::info!("incoming food = {:?}", food);
+                {
+                    let mut state = inbound_state_ref.lock().unwrap();
+                    state.consume_food(&food);
+                }
             }
         });
 
-        let state_ref = Arc::clone(&self.state);
+        let outbound_state_ref = self.state.clone();
         tokio::spawn(async move {
             let interval_seconds: u64 = 2;
             let interval_duration = time::Duration::from_secs(interval_seconds);
@@ -53,15 +58,13 @@ impl Organism for OrganismService {
             loop {
                 interval.tick().await;
                 let food = {
-                    let mut state = state_ref.lock().unwrap();
-                    state.create_food()
+                    let mut state = outbound_state_ref.lock().unwrap();
+                    state.produce_food()
                 };
-                if let Some(food) = food {
-                    tracing::info!("food = {:?}", food);
-                    if let Err(e) = tx.send(Ok(food)).await {
-                        tracing::info!("tx.send failed: {}", e);
-                        break;
-                    }
+                tracing::info!("food = {:?}", food);
+                if let Err(e) = tx.send(Ok(food)).await {
+                    tracing::info!("tx.send failed: {}", e);
+                    break;
                 }
             }
 
@@ -84,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let server_name = args[1].clone();
     let organism_service = OrganismService {
-        state: Arc::new(Mutex::new(State::new(&server_name))),
+        state: Arc::new(Mutex::new(State::new(&server_name, 1))),
     };
 
     let server_addr = args[2].clone();
@@ -109,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
     let mut client = connect_client(&peer_addr).await.expect("unable to connect");
 
+    let outbound_state_ref = state_ref.clone();
     let outbound = async_stream::stream! {
         let interval_seconds: u64 = 2;
         let interval_duration = time::Duration::from_secs(interval_seconds);
@@ -118,13 +122,11 @@ async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
         loop {
             interval.tick().await;
             let food = {
-                let mut state = state_ref.lock().unwrap();
-                state.create_food()
+                let mut state = outbound_state_ref.lock().unwrap();
+                state.produce_food()
             };
             tracing::info!("food = {:?}", food);
-            if let Some(food) = food {
-                yield food;
-            }
+            yield food;
         }
     };
 
@@ -134,8 +136,13 @@ async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
         .expect("food_flow failed");
     let mut inbound = response.into_inner();
 
-    while let Some(food) = inbound.message().await.expect("nbound.message() failed") {
+    let inbound_state_ref = state_ref.clone();
+    while let Some(food) = inbound.message().await.expect("inbound.message() failed") {
         println!("food = {:?}", food);
+        {
+            let mut state = inbound_state_ref.lock().unwrap();
+            state.consume_food(&food);
+        }
     }
 }
 
