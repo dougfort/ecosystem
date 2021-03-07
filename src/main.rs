@@ -84,22 +84,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args: Vec<String> = env::args().collect();
+    let server_index: usize = args[1].parse().expect("invalid argument");
+    let population_size: usize = args[2].parse().expect("invalid argument");
 
-    let server_name = args[1].clone();
+    let server_name = format!("organism{}", server_index);
+    let server_kind = server_index;
+    let server_addr = format!("[::1]:1000{}", server_index);
+
     let organism_service = OrganismService {
-        state: Arc::new(Mutex::new(State::new(&server_name, 1))),
+        state: Arc::new(Mutex::new(State::new(&server_name, server_kind))),
     };
 
-    let server_addr = args[2].clone();
-    for arg in args.iter().skip(3) {
-        let state_ref = Arc::clone(&organism_service.state);
-        let peer_addr = arg.clone();
-        tokio::spawn(async move { connect_to_peer(state_ref, &peer_addr).await });
+    for peer_index in 1..population_size + 1 {
+        if peer_index != server_index {
+            let state_ref = Arc::clone(&organism_service.state);
+            let peer_addr = format!("[::1]:1000{}", peer_index);
+            tokio::spawn(async move { connect_to_peer(state_ref, &peer_addr).await });
+        }
     }
 
     let svc = OrganismServer::new(organism_service);
 
-    tracing::info!("Starting server {} {}", "food", server_addr);
+    tracing::info!(
+        "Starting server {} food kind = {} address = {}",
+        server_name,
+        server_kind,
+        server_addr
+    );
     Server::builder()
         .trace_fn(|_| tracing::info_span!("ecosystem_server"))
         .add_service(svc)

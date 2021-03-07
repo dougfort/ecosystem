@@ -27,14 +27,18 @@ impl State {
     }
 
     pub fn produce_food(&mut self) -> Food {
+        self.food_id += 1;
+
         let available = match self.bins.get(&self.kind) {
             None => 0,
             Some(n) => *n,
         };
-        let (amount, remainder) = match available {
-            available if available < FOOD_PORTION_AMOUNT => (available, 0),
-            available => (FOOD_PORTION_AMOUNT, available - FOOD_PORTION_AMOUNT),
+        let (amount, remainder) = if available < FOOD_PORTION_AMOUNT {
+            (available, 0)
+        } else {
+            (FOOD_PORTION_AMOUNT, available - FOOD_PORTION_AMOUNT)
         };
+
         self.bins.insert(self.kind, remainder);
 
         Food {
@@ -52,7 +56,7 @@ impl State {
             Some(n) => *n,
         };
 
-        let new_available = std::cmp::min(available + food.amount as usize, BIN_MAX_AMOUNT);
+        let new_available = std::cmp::max(available + food.amount as usize, BIN_MAX_AMOUNT);
         self.bins.insert(self.kind, new_available);
     }
 }
