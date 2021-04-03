@@ -41,7 +41,7 @@ impl Organism for OrganismService {
             let mut stream = request.into_inner();
             while let Some(food) = stream.next().await {
                 let food = food.unwrap();
-                tracing::info!("incoming food = {:?}", food);
+                tracing::info!("server inbound food = {:?}", food);
                 {
                     let mut state = inbound_state_ref.lock().unwrap();
                     state.consume_food(&food);
@@ -61,7 +61,7 @@ impl Organism for OrganismService {
                     let mut state = outbound_state_ref.lock().unwrap();
                     state.produce_food()
                 };
-                tracing::info!("food = {:?}", food);
+                tracing::info!("server outbound food = {:?}", food);
                 if let Err(e) = tx.send(Ok(food)).await {
                     tracing::info!("tx.send failed: {}", e);
                     break;
@@ -128,7 +128,6 @@ async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
         let interval_seconds: u64 = 2;
         let interval_duration = time::Duration::from_secs(interval_seconds);
         let mut interval = time::interval(interval_duration);
-        let mut food_id: usize = 0;
 
         loop {
             interval.tick().await;
@@ -136,7 +135,7 @@ async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
                 let mut state = outbound_state_ref.lock().unwrap();
                 state.produce_food()
             };
-            tracing::info!("food = {:?}", food);
+            tracing::info!("client outbound food = {:?}", food);
             yield food;
         }
     };
@@ -149,7 +148,7 @@ async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
 
     let inbound_state_ref = state_ref.clone();
     while let Some(food) = inbound.message().await.expect("inbound.message() failed") {
-        println!("food = {:?}", food);
+        tracing::info!("client inbound food = {:?}", food);
         {
             let mut state = inbound_state_ref.lock().unwrap();
             state.consume_food(&food);

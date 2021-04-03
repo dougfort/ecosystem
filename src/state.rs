@@ -56,7 +56,7 @@ impl State {
             Some(n) => *n,
         };
 
-        let new_available = std::cmp::max(available + food.amount as usize, BIN_MAX_AMOUNT);
+        let new_available = std::cmp::min(available + food.amount as usize, BIN_MAX_AMOUNT);
         self.bins.insert(self.kind, new_available);
     }
 }
