@@ -15,6 +15,9 @@ pub mod ecosystem {
 use ecosystem::organism_client::OrganismClient;
 use ecosystem::organism_server::{Organism, OrganismServer};
 
+pub mod configuration;
+use configuration::get_configuration;
+
 pub mod state;
 use state::State;
 
@@ -94,6 +97,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let organism_service = OrganismService {
         state: Arc::new(Mutex::new(State::new(&server_name, server_kind))),
     };
+
+    let _ = get_configuration()?;
+
 
     for peer_index in 1..population_size + 1 {
         if peer_index != server_index {
