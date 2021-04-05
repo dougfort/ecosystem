@@ -1,0 +1,3 @@
+application:
+  addr_template: "[::1]:1000{}"
+  
