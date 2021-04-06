@@ -3,12 +3,18 @@ use std::convert::{TryFrom, TryInto};
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub application: ApplicationSettings,
+    pub ecosystem: EcosystemSettings,
 }
 
 #[derive(serde::Deserialize)]
 pub struct ApplicationSettings {
     pub addr_host: String,
     pub addr_base_port: usize,
+}
+
+#[derive(serde::Deserialize)]
+pub struct EcosystemSettings {
+    pub population_size: usize,
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
@@ -76,6 +82,7 @@ mod tests {
         let settings = get_configuration()?;
         assert_eq!(settings.application.addr_host, "[::1]");
         assert_eq!(settings.application.addr_base_port, 1000);
+        assert_eq!(settings.ecosystem.population_size, 2);
 
         Ok(())
     }
