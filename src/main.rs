@@ -90,21 +90,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server_index: usize = args[1].parse().expect("invalid argument");
     let population_size: usize = args[2].parse().expect("invalid argument");
 
+    let settings = get_configuration()?;
+
     let server_name = format!("organism{}", server_index);
     let server_kind = server_index;
-    let server_addr = format!("[::1]:1000{}", server_index);
+    let server_addr = format!(
+        "{}:{}",
+        settings.application.addr_host,
+        settings.application.addr_base_port + server_index
+    );
 
     let organism_service = OrganismService {
         state: Arc::new(Mutex::new(State::new(&server_name, server_kind))),
     };
 
-    let _ = get_configuration()?;
-
-
     for peer_index in 1..population_size + 1 {
         if peer_index != server_index {
             let state_ref = Arc::clone(&organism_service.state);
-            let peer_addr = format!("[::1]:1000{}", peer_index);
+            let peer_addr = format!(
+                "{}:{}",
+                settings.application.addr_host,
+                settings.application.addr_base_port + peer_index
+            );        
             tokio::spawn(async move { connect_to_peer(state_ref, &peer_addr).await });
         }
     }

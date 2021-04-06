@@ -7,7 +7,8 @@ pub struct Settings {
 
 #[derive(serde::Deserialize)]
 pub struct ApplicationSettings {
-    pub addr_template: String,
+    pub addr_host: String,
+    pub addr_base_port: usize,
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
@@ -66,7 +67,6 @@ impl TryFrom<String> for Environment {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,7 +74,8 @@ mod tests {
     #[test]
     fn configuration_can_be_loaded() -> Result<(), config::ConfigError> {
         let settings = get_configuration()?;
-        assert_eq!(settings.application.addr_template, "[::1]:1000{}");
+        assert_eq!(settings.application.addr_host, "[::1]");
+        assert_eq!(settings.application.addr_base_port, 1000);
 
         Ok(())
     }

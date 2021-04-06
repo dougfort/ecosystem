@@ -1,2 +1,3 @@
 application:
-  addr_template: "[::1]:1000{}"
+  addr_host: "[::1]"
+  addr_base_port: 10000
