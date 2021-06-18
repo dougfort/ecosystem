@@ -26,5 +26,13 @@ tracing-attributes = "0.1"
 tracing-futures = "0.2"
 lazy_static = "1.4.0"
 
+[lib]
+name = "configuration"
+path = "src/configuration.rs"
+
+[[bin]]
+name = "observer"
+path = "src/bin/observer/main.rs"
+
 [build-dependencies]
 tonic-build = "0.4"

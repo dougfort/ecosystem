@@ -1,5 +1,8 @@
 application:
   addr_host: "[::1]"
   addr_base_port: 10000
+observer:
+  host: "[::1]"
+  port: 20000
 ecosystem:
   population_size: 2

@@ -16,7 +16,11 @@ pub mod ecosystem {
 use ecosystem::organism_client::OrganismClient;
 use ecosystem::organism_server::{Organism, OrganismServer};
 
-pub mod configuration;
+pub mod observer {
+    tonic::include_proto!("observer");
+}
+use observer::event_observer_client::EventObserverClient;
+
 use configuration::get_configuration;
 
 pub mod state;
