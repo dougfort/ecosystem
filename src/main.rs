@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use futures::Stream;
 use futures_util::StreamExt;
 use std::env;
@@ -81,7 +82,7 @@ impl Organism for OrganismService {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
@@ -170,7 +171,7 @@ async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
 
 async fn connect_client(
     addr: &str,
-) -> Result<OrganismClient<tonic::transport::Channel>, tonic::transport::Error> {
+) -> Result<OrganismClient<tonic::transport::Channel>, anyhow::Error> {
     let mut retries: usize = 10;
     loop {
         let uri = format!("http://{}", addr);
@@ -181,7 +182,7 @@ async fn connect_client(
             Err(e) => {
                 tracing::error!("{}) unable to connect: {:?}", retries, e);
                 if retries == 0 {
-                    return Err(e);
+                    return Err(anyhow!("unable to connect {}", e));
                 };
                 time::sleep(time::Duration::from_secs(10)).await;
                 retries -= 1;
