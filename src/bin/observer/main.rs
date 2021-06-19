@@ -26,6 +26,11 @@ impl EventObserver for EventObserverService {
             tokio::sync::mpsc::Receiver<observer::Event>,
         ) = mpsc::channel(1);
 
+        let mut inbound = request.into_inner();
+        while let Some(event) = inbound.message().await.expect("inbound.message() failed") {
+            tracing::info!("client inbound event = {:?}", event);
+        }
+
         Ok(Response::new(observer::StreamId { stream_id: 42 }))
     }
 }
