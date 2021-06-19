@@ -49,7 +49,9 @@ pub fn get_configuration() -> Result<Settings> {
     // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
     settings.merge(config::Environment::with_prefix("app").separator("__"))?;
 
-    settings.try_into().map_err(|e| anyhow!("settings.try_into(): {:?}", e))
+    settings
+        .try_into()
+        .map_err(|e| anyhow!("settings.try_into(): {:?}", e))
 }
 
 pub enum Environment {

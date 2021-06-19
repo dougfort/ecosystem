@@ -1,6 +1,4 @@
 use anyhow::Result;
-use futures::Stream;
-use std::pin::Pin;
 use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
@@ -17,20 +15,18 @@ pub struct EventObserverService {}
 
 #[tonic::async_trait]
 impl EventObserver for EventObserverService {
-    type EventsStream =
-        Pin<Box<dyn Stream<Item = Result<observer::Event, Status>> + Send + Sync + 'static>>;
-
     async fn events(
         &self,
-        request: Request<observer::Join>,
-    ) -> Result<Response<Self::EventsStream>, Status> {
+        request: Request<tonic::Streaming<observer::Event>>,
+    ) -> Result<Response<observer::StreamId>, Status> {
         tracing::info!("request = {:?}", request);
 
-        let (_tx, rx) = mpsc::channel(1);
+        let (_tx, _rx): (
+            tokio::sync::mpsc::Sender<observer::Event>,
+            tokio::sync::mpsc::Receiver<observer::Event>,
+        ) = mpsc::channel(1);
 
-        Ok(Response::new(Box::pin(
-            tokio_stream::wrappers::ReceiverStream::new(rx),
-        )))
+        Ok(Response::new(observer::StreamId { stream_id: 42 }))
     }
 }
 

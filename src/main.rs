@@ -120,6 +120,10 @@ async fn main() -> Result<()> {
         }
     }
 
+    let observer_addr = format!("{}:{}", settings.observer.host, settings.observer.port,);
+
+    tokio::spawn(async move { connect_to_observer(&observer_addr).await });
+
     let svc = OrganismServer::new(organism_service);
 
     tracing::info!(
@@ -137,8 +141,65 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+async fn connect_to_observer(observer_addr: &str) {
+    let mut client = connect_client_to_observer(&observer_addr)
+        .await
+        .expect("unable to connect to observer");
+
+    let outbound = async_stream::stream! {
+        let interval_seconds: u64 = 2;
+        let interval_duration = time::Duration::from_secs(interval_seconds);
+        let mut interval = time::interval(interval_duration);
+
+        loop {
+            interval.tick().await;
+            let event = observer::Event{
+                id: 1,
+                event_type: 2,
+                food_kind: 3,
+                food_amount: 4,
+            };
+            tracing::info!("client outbound event = {:?}", event);
+            yield event;
+        }
+    };
+
+    let response = client
+        .events(Request::new(outbound))
+        .await
+        .expect("events failed");
+    let inbound = response.into_inner();
+
+    let stream_id = inbound.stream_id;
+    tracing::info!("event stream_id: {:?}", stream_id);
+}
+
+async fn connect_client_to_observer(
+    addr: &str,
+) -> Result<EventObserverClient<tonic::transport::Channel>, anyhow::Error> {
+    let mut retries: usize = 10;
+    loop {
+        let uri = format!("http://{}", addr);
+        match EventObserverClient::connect(uri).await {
+            Ok(c) => {
+                return Ok(c);
+            }
+            Err(e) => {
+                tracing::error!("{}) unable to connect: {:?}", retries, e);
+                if retries == 0 {
+                    return Err(anyhow!("unable to connect {}", e));
+                };
+                time::sleep(time::Duration::from_secs(10)).await;
+                retries -= 1;
+            }
+        }
+    }
+}
+
 async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
-    let mut client = connect_client(&peer_addr).await.expect("unable to connect");
+    let mut client = connect_client_to_peer(&peer_addr)
+        .await
+        .expect("unable to connect");
 
     let outbound_state_ref = state_ref.clone();
     let outbound = async_stream::stream! {
@@ -173,7 +234,7 @@ async fn connect_to_peer(state_ref: Arc<Mutex<State>>, peer_addr: &str) {
     }
 }
 
-async fn connect_client(
+async fn connect_client_to_peer(
     addr: &str,
 ) -> Result<OrganismClient<tonic::transport::Channel>, anyhow::Error> {
     let mut retries: usize = 10;
