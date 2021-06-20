@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package observer;
+
+service EventObserver {
+    rpc Events(stream Event) returns (StreamId)  {}
+}
+
+message StreamId {
+    int32 stream_id = 1;
+}
+
+message Event {
+    int32 id = 1;
+    int32 event_type = 2;
+    int32 food_kind = 3;
+    int32 food_amount = 4;
+}

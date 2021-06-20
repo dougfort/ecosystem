@@ -1,8 +1,10 @@
+use anyhow::{anyhow, Result};
 use std::convert::{TryFrom, TryInto};
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub application: ApplicationSettings,
+    pub observer: ObserverSettings,
     pub ecosystem: EcosystemSettings,
 }
 
@@ -13,11 +15,17 @@ pub struct ApplicationSettings {
 }
 
 #[derive(serde::Deserialize)]
+pub struct ObserverSettings {
+    pub host: String,
+    pub port: usize,
+}
+
+#[derive(serde::Deserialize)]
 pub struct EcosystemSettings {
     pub population_size: usize,
 }
 
-pub fn get_configuration() -> Result<Settings, config::ConfigError> {
+pub fn get_configuration() -> Result<Settings> {
     let mut settings = config::Config::default();
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     let configuration_directory = base_path.join("configuration");
@@ -30,7 +38,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
     let environment: Environment = std::env::var("APP_ENVIRONMENT")
         .unwrap_or_else(|_| "local".into())
         .try_into()
-        .expect("Failed to parse APP_ENVIRONMENT");
+        .map_err(|e| anyhow!("Failed to parse APP_ENVIRONMENT: {:?}", e))?;
 
     // layer on the environment specific values
     settings.merge(
@@ -41,7 +49,9 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
     // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
     settings.merge(config::Environment::with_prefix("app").separator("__"))?;
 
-    settings.try_into()
+    settings
+        .try_into()
+        .map_err(|e| anyhow!("settings.try_into(): {:?}", e))
 }
 
 pub enum Environment {
@@ -78,10 +88,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn configuration_can_be_loaded() -> Result<(), config::ConfigError> {
+    fn configuration_can_be_loaded() -> Result<()> {
         let settings = get_configuration()?;
         assert_eq!(settings.application.addr_host, "[::1]");
         assert_eq!(settings.application.addr_base_port, 1000);
+        assert_eq!(settings.observer.host, "[::1]");
+        assert_eq!(settings.observer.port, 2000);
         assert_eq!(settings.ecosystem.population_size, 2);
 
         Ok(())
