@@ -47,7 +47,7 @@ impl Organism for OrganismService {
             let mut stream = request.into_inner();
             while let Some(food) = stream.next().await {
                 let food = food.unwrap();
-                tracing::info!("server inbound food = {:?}", food);
+                tracing::debug!("server inbound food = {:?}", food);
                 {
                     let mut state = inbound_state_ref.lock().unwrap();
                     state.consume_food(&food);
@@ -69,7 +69,7 @@ impl Organism for OrganismService {
                     let mut state = outbound_state_ref.lock().unwrap();
                     state.produce_food()
                 };
-                tracing::info!("server outbound food = {:?}", food);
+                tracing::debug!("server outbound food = {:?}", food);
                 if let Err(e) = tx.send(Ok(food)).await {
                     tracing::info!("tx.send failed: {}", e);
                     break;

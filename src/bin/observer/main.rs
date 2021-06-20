@@ -20,10 +20,12 @@ impl EventObserver for EventObserverService {
     ) -> Result<Response<observer::StreamId>, Status> {
         tracing::info!("request = {:?}", request);
 
-        let mut inbound = request.into_inner();
-        while let Some(event) = inbound.message().await.expect("inbound.message() failed") {
-            tracing::info!("client inbound event = {:?}", event);
-        }
+        tokio::spawn(async move {
+            let mut inbound = request.into_inner();
+            while let Some(event) = inbound.message().await.expect("inbound.message() failed") {
+                tracing::info!("client inbound event = {:?}", event);
+            }
+        });
 
         Ok(Response::new(observer::StreamId { stream_id: 42 }))
     }
