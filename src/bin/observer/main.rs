@@ -1,5 +1,4 @@
 use anyhow::Result;
-use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 
@@ -20,11 +19,6 @@ impl EventObserver for EventObserverService {
         request: Request<tonic::Streaming<observer::Event>>,
     ) -> Result<Response<observer::StreamId>, Status> {
         tracing::info!("request = {:?}", request);
-
-        let (_tx, _rx): (
-            tokio::sync::mpsc::Sender<observer::Event>,
-            tokio::sync::mpsc::Receiver<observer::Event>,
-        ) = mpsc::channel(1);
 
         let mut inbound = request.into_inner();
         while let Some(event) = inbound.message().await.expect("inbound.message() failed") {
