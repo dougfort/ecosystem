@@ -22,7 +22,10 @@ impl EventObserver for EventObserverService {
 
         tokio::spawn(async move {
             let mut inbound = request.into_inner();
-            while let Some(event) = inbound.message().await.expect("inbound.message() failed") {
+            while let Some(event) = inbound.message().await.unwrap_or_else(|e| {
+                tracing::warn!("inbound.message() failed {:?}", e);
+                None
+            }) {
                 tracing::info!("client inbound event = {:?}", event);
             }
         });
