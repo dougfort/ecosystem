@@ -9,6 +9,6 @@ service Organism {
 message Food {
     int32 id = 1;
     string source = 2;
-    int32 kind = 3;
+    string kind = 3;
     int32 amount = 4;
 }
