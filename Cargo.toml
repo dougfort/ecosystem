@@ -35,5 +35,9 @@ path = "src/configuration.rs"
 name = "observer"
 path = "src/bin/observer/main.rs"
 
+[[bin]]
+name = "organism"
+path = "src/bin/organism/main.rs"
+
 [build-dependencies]
 tonic-build = "0.5"
