@@ -26,7 +26,14 @@ impl EventObserver for EventObserverService {
                 tracing::warn!("inbound.message() failed {:?}", e);
                 None
             }) {
-                tracing::info!("client inbound event = {:?}", event);
+                tracing::info!(
+                    "({}, {}) {}: {}, {}",
+                    event.source,
+                    event.id,
+                    event.event_type,
+                    event.food_kind,
+                    event.food_amount
+                );
             }
         });
 

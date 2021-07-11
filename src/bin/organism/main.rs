@@ -124,7 +124,7 @@ async fn main() -> Result<()> {
 
     let settings = get_configuration()?;
 
-    let server_name = matches.value_of("name").unwrap();
+    let server_name = matches.value_of("name").unwrap().to_string();
 
     let server_index: usize = matches.value_of("index").unwrap().parse()?;
     let server_addr = format!(
@@ -142,11 +142,7 @@ async fn main() -> Result<()> {
     let outgoing_food = matches.value_of("outgoing").unwrap();
     let incoming_food = matches.value_of("incoming").unwrap();
     let organism_service = OrganismService {
-        state: Arc::new(Mutex::new(State::new(
-            &server_name,
-            &outgoing_food,
-            &incoming_food,
-        ))),
+        state: Arc::new(Mutex::new(State::new(&outgoing_food, &incoming_food))),
     };
 
     for peer_index in 1..settings.ecosystem.population_size + 1 {
@@ -158,7 +154,10 @@ async fn main() -> Result<()> {
                 settings.application.addr_base_port + peer_index
             );
             let tx = event_tx.clone();
-            tokio::spawn(async move { connect_to_peer(state_ref, &peer_addr, tx).await });
+            let server_name = server_name.clone();
+            tokio::spawn(
+                async move { connect_to_peer(server_name, state_ref, &peer_addr, tx).await },
+            );
         }
     }
 
@@ -237,6 +236,7 @@ async fn connect_client_to_observer(
 }
 
 async fn connect_to_peer(
+    server_name: String,
     state_ref: Arc<Mutex<State>>,
     peer_addr: &str,
     event_tx: tokio::sync::mpsc::Sender<observer::Event>,
@@ -245,6 +245,7 @@ async fn connect_to_peer(
         .await
         .expect("unable to connect");
 
+    let outbound_server_name = server_name.clone();
     let outbound_state_ref = state_ref.clone();
     let mut event_id: i32 = 0;
     let tx = event_tx.clone();
@@ -262,6 +263,7 @@ async fn connect_to_peer(
             tracing::debug!("client outbound food = {:?}", food);
             event_id += 1;
             tx.send(observer::Event{
+                source: outbound_server_name.clone(),
                 id: event_id,
                 event_type: 1,
                 food_kind: food.kind.clone(),
@@ -279,12 +281,14 @@ async fn connect_to_peer(
         .expect("food_flow failed");
     let mut inbound = response.into_inner();
 
+    let inbound_server_name = server_name.clone();
     let inbound_state_ref = state_ref.clone();
     let tx = event_tx.clone();
     while let Some(food) = inbound.message().await.expect("inbound.message() failed") {
         tracing::debug!("client inbound food = {:?}", food);
         event_id += 1;
         tx.send(observer::Event {
+            source: inbound_server_name.clone(),
             id: event_id,
             event_type: 2,
             food_kind: food.kind.clone(),
