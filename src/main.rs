@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
+use clap::{App, Arg};
 use futures::Stream;
 use futures_util::StreamExt;
-use std::env;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -91,13 +91,42 @@ async fn main() -> Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let args: Vec<String> = env::args().collect();
-    let server_index: usize = args[1].parse().expect("invalid argument");
+    let matches = App::new("organism")
+        .version("0.0.1")
+        .arg(
+            Arg::with_name("index")
+                .long("index")
+                .help("index of this organism")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("name")
+                .short("n")
+                .long("name")
+                .help("name of this organism")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("incoming")
+                .short("i")
+                .long("incoming")
+                .help("incoming food flow")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("outgoing")
+                .short("o")
+                .long("outgoing")
+                .help("outgoing food flow")
+                .takes_value(true),
+        )
+        .get_matches();
 
     let settings = get_configuration()?;
 
-    let server_name = format!("organism{}", server_index);
-    let server_kind = server_index;
+    let server_name = matches.value_of("name").unwrap();
+
+    let server_index: usize = matches.value_of("index").unwrap().parse()?;
     let server_addr = format!(
         "{}:{}",
         settings.application.addr_host,
@@ -110,8 +139,14 @@ async fn main() -> Result<()> {
         tokio::sync::mpsc::Receiver<observer::Event>,
     ) = mpsc::channel(32);
 
+    let outgoing_food = matches.value_of("outgoing").unwrap();
+    let incoming_food = matches.value_of("incoming").unwrap();
     let organism_service = OrganismService {
-        state: Arc::new(Mutex::new(State::new(&server_name, server_kind))),
+        state: Arc::new(Mutex::new(State::new(
+            &server_name,
+            &outgoing_food,
+            &incoming_food,
+        ))),
     };
 
     for peer_index in 1..settings.ecosystem.population_size + 1 {
@@ -134,9 +169,10 @@ async fn main() -> Result<()> {
     let svc = OrganismServer::new(organism_service);
 
     tracing::info!(
-        "Starting server {} food kind = {} address = {}",
+        "Starting server {}; outgoing food = {}; incoming food = {}; address = {}",
         server_name,
-        server_kind,
+        outgoing_food,
+        incoming_food,
         server_addr
     );
     Server::builder()
@@ -228,7 +264,7 @@ async fn connect_to_peer(
             tx.send(observer::Event{
                 id: event_id,
                 event_type: 1,
-                food_kind: food.kind,
+                food_kind: food.kind.clone(),
                 food_amount: food.amount,
             })
             .await
@@ -251,7 +287,7 @@ async fn connect_to_peer(
         tx.send(observer::Event {
             id: event_id,
             event_type: 2,
-            food_kind: food.kind,
+            food_kind: food.kind.clone(),
             food_amount: food.amount,
         })
         .await

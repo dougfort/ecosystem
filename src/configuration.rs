@@ -91,9 +91,9 @@ mod tests {
     fn configuration_can_be_loaded() -> Result<()> {
         let settings = get_configuration()?;
         assert_eq!(settings.application.addr_host, "[::1]");
-        assert_eq!(settings.application.addr_base_port, 1000);
+        assert_eq!(settings.application.addr_base_port, 10000);
         assert_eq!(settings.observer.host, "[::1]");
-        assert_eq!(settings.observer.port, 2000);
+        assert_eq!(settings.observer.port, 20000);
         assert_eq!(settings.ecosystem.population_size, 2);
 
         Ok(())

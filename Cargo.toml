@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
+clap = "2"
 config = "0.11"
 tonic = "0.5"
 prost = "0.8"
