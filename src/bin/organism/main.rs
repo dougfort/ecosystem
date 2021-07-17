@@ -69,10 +69,12 @@ impl Organism for OrganismService {
                     let mut state = outbound_state_ref.lock().unwrap();
                     state.produce_food()
                 };
-                tracing::debug!("server outbound food = {:?}", food);
-                if let Err(e) = tx.send(Ok(food)).await {
-                    tracing::info!("tx.send failed: {}", e);
-                    break;
+                if let Some(f) = food {
+                    tracing::debug!("server outbound food = {:?}", f);
+                    if let Err(e) = tx.send(Ok(f)).await {
+                        tracing::info!("tx.send failed: {}", e);
+                        break;
+                    }
                 }
             }
 
@@ -260,18 +262,20 @@ async fn connect_to_peer(
                 let mut state = outbound_state_ref.lock().unwrap();
                 state.produce_food()
             };
-            tracing::debug!("client outbound food = {:?}", food);
-            event_id += 1;
-            tx.send(observer::Event{
-                source: outbound_server_name.clone(),
-                id: event_id,
-                event_type: 1,
-                food_kind: food.kind.clone(),
-                food_amount: food.amount,
-            })
-            .await
-            .expect("event_tx.send failed");
-            yield food;
+            if let Some(f) = food {
+                tracing::debug!("client outbound food = {:?}", f);
+                event_id += 1;
+                tx.send(observer::Event{
+                    source: outbound_server_name.clone(),
+                    id: event_id,
+                    event_type: 1,
+                    food_kind: f.kind.clone(),
+                    food_amount: f.amount,
+                })
+                .await
+                .expect("event_tx.send failed");
+                yield f;
+            }
         }
     };
 
