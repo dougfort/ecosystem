@@ -191,7 +191,7 @@ async fn connect_to_observer(
 ) {
     let mut client = connect_client_to_observer(observer_addr)
         .await
-        .expect("unable to connect to observer");
+        .expect("organism unable to connect to observer");
 
     let outbound = async_stream::stream! {
 
@@ -226,9 +226,13 @@ async fn connect_client_to_observer(
                 return Ok(c);
             }
             Err(e) => {
-                tracing::error!("{}) unable to connect: {:?}", retries, e);
+                tracing::error!(
+                    "client unable to connect to observer, retries left = {}: {}",
+                    retries,
+                    e
+                );
                 if retries == 0 {
-                    return Err(anyhow!("unable to connect {}", e));
+                    return Err(anyhow!("client unable to connect to observer {}", e));
                 };
                 time::sleep(time::Duration::from_secs(10)).await;
                 retries -= 1;
