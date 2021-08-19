@@ -36,7 +36,7 @@ impl State {
     pub fn consume_food(&mut self, food: &Food) -> bool {
         if food.kind == self.incoming {
             self.incoming_amount += food.amount as usize;
-            return true
+            return true;
         }
 
         false

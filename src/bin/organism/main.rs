@@ -144,7 +144,7 @@ async fn main() -> Result<()> {
     let outgoing_food = matches.value_of("outgoing").unwrap();
     let incoming_food = matches.value_of("incoming").unwrap();
     let organism_service = OrganismService {
-        state: Arc::new(Mutex::new(State::new(&outgoing_food, &incoming_food))),
+        state: Arc::new(Mutex::new(State::new(outgoing_food, incoming_food))),
     };
 
     for peer_index in 1..settings.ecosystem.population_size + 1 {
@@ -189,7 +189,7 @@ async fn connect_to_observer(
     observer_addr: &str,
     mut event_rx: tokio::sync::mpsc::Receiver<observer::Event>,
 ) {
-    let mut client = connect_client_to_observer(&observer_addr)
+    let mut client = connect_client_to_observer(observer_addr)
         .await
         .expect("unable to connect to observer");
 
@@ -243,7 +243,7 @@ async fn connect_to_peer(
     peer_addr: &str,
     event_tx: tokio::sync::mpsc::Sender<observer::Event>,
 ) {
-    let mut client = connect_client_to_peer(&peer_addr)
+    let mut client = connect_client_to_peer(peer_addr)
         .await
         .expect("unable to connect");
 
