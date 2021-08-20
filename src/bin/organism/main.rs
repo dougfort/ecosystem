@@ -45,12 +45,19 @@ impl Organism for OrganismService {
         let inbound_state_ref = self.state.clone();
         tokio::spawn(async move {
             let mut stream = request.into_inner();
-            while let Some(food) = stream.next().await {
-                let food = food.unwrap();
-                tracing::debug!("server inbound food = {:?}", food);
-                {
-                    let mut state = inbound_state_ref.lock().unwrap();
-                    state.consume_food(&food);
+            while let Some(food_next) = stream.next().await {
+                match food_next {
+                    Ok(food) => {
+                        tracing::debug!("server inbound food = {:?}", food);
+                        {
+                            let mut state = inbound_state_ref.lock().unwrap();
+                            state.consume_food(&food);
+                        }
+                    }
+                    Err(error) => {
+                        tracing::error!("inbound stream error = {:?}", error);
+                        break;
+                    }
                 }
             }
         });
@@ -165,7 +172,7 @@ async fn main() -> Result<()> {
 
     let observer_addr = format!("{}:{}", settings.observer.host, settings.observer.port,);
 
-    tokio::spawn(async move { connect_to_observer(&observer_addr, event_rx).await });
+    connect_to_observer(&observer_addr, event_rx).await?;
 
     let svc = OrganismServer::new(organism_service);
 
@@ -188,10 +195,8 @@ async fn main() -> Result<()> {
 async fn connect_to_observer(
     observer_addr: &str,
     mut event_rx: tokio::sync::mpsc::Receiver<observer::Event>,
-) {
-    let mut client = connect_client_to_observer(observer_addr)
-        .await
-        .expect("organism unable to connect to observer");
+) -> Result<()> {
+    let mut client = connect_client_to_observer(observer_addr).await?;
 
     let outbound = async_stream::stream! {
 
@@ -205,14 +210,13 @@ async fn connect_to_observer(
         }
     };
 
-    let response = client
-        .events(Request::new(outbound))
-        .await
-        .expect("events failed");
+    let response = client.events(Request::new(outbound)).await?;
     let inbound = response.into_inner();
 
     let stream_id = inbound.stream_id;
     tracing::info!("event stream_id: {:?}", stream_id);
+
+    Ok(())
 }
 
 async fn connect_client_to_observer(
@@ -226,7 +230,7 @@ async fn connect_client_to_observer(
                 return Ok(c);
             }
             Err(e) => {
-                tracing::error!(
+                tracing::warn!(
                     "client unable to connect to observer, retries left = {}: {}",
                     retries,
                     e
@@ -322,9 +326,13 @@ async fn connect_client_to_peer(
                 return Ok(c);
             }
             Err(e) => {
-                tracing::error!("{}) unable to connect: {:?}", retries, e);
+                tracing::warn!(
+                    "unable to connect client to peer, retries left = {} {}",
+                    retries,
+                    e
+                );
                 if retries == 0 {
-                    return Err(anyhow!("unable to connect {}", e));
+                    return Err(anyhow!("unable to connect client to peer {}", e));
                 };
                 time::sleep(time::Duration::from_secs(10)).await;
                 retries -= 1;
