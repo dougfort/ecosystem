@@ -1,8 +1,6 @@
 use anyhow::{anyhow, Result};
 use clap::{App, Arg};
-use futures::Stream;
 use futures_util::StreamExt;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
@@ -33,13 +31,10 @@ pub struct OrganismService {
 
 #[tonic::async_trait]
 impl Organism for OrganismService {
-    type FoodFlowStream =
-        Pin<Box<dyn Stream<Item = Result<ecosystem::Food, Status>> + Send + Sync + 'static>>;
-
     async fn food_flow(
         &self,
         request: Request<tonic::Streaming<ecosystem::Food>>,
-    ) -> Result<Response<Self::FoodFlowStream>, Status> {
+    ) -> Result<Response<ecosystem::StreamId>, Status> {
         tracing::info!("food_flow = {:?}", request);
 
         let inbound_state_ref = self.state.clone();
@@ -62,35 +57,7 @@ impl Organism for OrganismService {
             }
         });
 
-        let (tx, rx) = mpsc::channel(1);
-
-        let outbound_state_ref = self.state.clone();
-        tokio::spawn(async move {
-            let interval_seconds: u64 = 2;
-            let interval_duration = time::Duration::from_secs(interval_seconds);
-            let mut interval = time::interval(interval_duration);
-
-            loop {
-                interval.tick().await;
-                let food = {
-                    let mut state = outbound_state_ref.lock().unwrap();
-                    state.produce_food()
-                };
-                if let Some(f) = food {
-                    tracing::debug!("server outbound food = {:?}", f);
-                    if let Err(e) = tx.send(Ok(f)).await {
-                        tracing::info!("tx.send failed: {}", e);
-                        break;
-                    }
-                }
-            }
-
-            tracing::info!("exit interval loop")
-        });
-
-        Ok(Response::new(Box::pin(
-            tokio_stream::wrappers::ReceiverStream::new(rx),
-        )))
+        Ok(Response::new(ecosystem::StreamId { id: 3 }))
     }
 }
 
@@ -291,28 +258,10 @@ async fn connect_to_peer(
         .food_flow(Request::new(outbound))
         .await
         .expect("food_flow failed");
-    let mut inbound = response.into_inner();
+    let inbound = response.into_inner();
 
-    let inbound_server_name = server_name.clone();
-    let inbound_state_ref = state_ref.clone();
-    let tx = event_tx.clone();
-    while let Some(food) = inbound.message().await.expect("inbound.message() failed") {
-        tracing::debug!("client inbound food = {:?}", food);
-        event_id += 1;
-        tx.send(observer::Event {
-            source: inbound_server_name.clone(),
-            id: event_id,
-            event_type: 2,
-            food_kind: food.kind.clone(),
-            food_amount: food.amount,
-        })
-        .await
-        .expect("event_tx.send failed");
-        {
-            let mut state = inbound_state_ref.lock().unwrap();
-            state.consume_food(&food);
-        }
-    }
+    let stream_id = inbound.id;
+    tracing::debug!("client stream_id {}", stream_id);
 }
 
 async fn connect_client_to_peer(
