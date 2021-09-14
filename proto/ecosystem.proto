@@ -3,7 +3,11 @@ syntax = "proto3";
 package ecosystem;
 
 service Organism {
-    rpc FoodFlow(stream Food) returns (stream Food) {}
+    rpc FoodFlow(stream Food) returns (StreamId) {}
+}
+
+message StreamId {
+    int32 id = 1;
 }
 
 message Food {
